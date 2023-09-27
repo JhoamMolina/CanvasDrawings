@@ -2,6 +2,34 @@
   width: 100vw;
   height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+.button {
+  padding: 10px;
+  margin-right: 10px;
+  border: none;
+  cursor: pointer;
+  color: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.button:hover {
+  filter: brightness(85%);
+}
+
+.rectangle-button {
+  background-color: #4CAF50;
+}
+
+.circle-button {
+  background-color: #008CBA;
+}
+
+.icon {
+  margin-right: 10px;
 }
