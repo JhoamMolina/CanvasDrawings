@@ -14,12 +14,15 @@
   cursor: pointer;
   color: white;
   border-radius: 4px;
-  display: flex;
-  align-items: center;
 }
 
-.button:hover {
-  filter: brightness(85%);
+.button:active {
+  filter: brightness(75%);
+}
+
+
+.button:active:hover {
+  filter: brightness(95%);
 }
 
 .rectangle-button {
@@ -32,4 +35,9 @@
 
 .icon {
   margin-right: 10px;
+  vertical-align: middle;
+}
+
+.contrast-button {
+  background-color: #f44336;
 }

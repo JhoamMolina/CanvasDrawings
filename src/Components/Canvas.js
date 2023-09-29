@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOnDraw } from "./Hooks";
 
+const brightness = 200; // Adjust this value based on your desired brightness
+
 const Canvas = (props) => {
-  const { width, height, imageUrl, shapeType } = props;
+  const { width, height, imageUrl, shapeType, adjustContrast } = props;
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomPoint, setZoomPoint] = useState({ x: width / 2, y: height / 2 }); // center by default
+
   const { setCanvasRef, canvasRef, lastPointRef, prevPointRef } =
     useOnDraw(onDraw);
 
@@ -11,45 +16,87 @@ const Canvas = (props) => {
   const imgRef = useRef(new Image());
   imgRef.current.src = imageUrl;
 
-  console.log();
-
-  function drawCircle(start, end, ctx, color) {
-    const minX = Math.min(start.x, end.x);
-    const minY = Math.min(start.y, end.y);
-    const maxX = Math.max(start.x, end.x);
-    const maxY = Math.max(start.y, end.y);
-
-    // Calculate side to form a square
-    const side = Math.max(maxX - minX, maxY - minY);
-
-    // Adjust min coordinates to form a square
-    const adjustedMinX = start.x < end.x ? minX : maxX - side;
-    const adjustedMinY = start.y < end.y ? minY : maxY - side;
-
-    // Calculate the center and the radius of the circle
-    const centerX = adjustedMinX + side / 2;
-    const centerY = adjustedMinY + side / 2;
-    const radius = side / 2;
-
-    // Draw the circle
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = color;
-    ctx.stroke();
+  function adjustPoint(point, zoomLevel, zoomPoint) {
+    const { x, y } = point;
+    return {
+      x: (x - zoomPoint.x) / zoomLevel + zoomPoint.x,
+      y: (y - zoomPoint.y) / zoomLevel + zoomPoint.y,
+    };
   }
 
   const redraw = useCallback(() => {
     const ctx = canvasRef.current.getContext("2d");
     ctx.clearRect(0, 0, width, height);
+    ctx.save();
+
+    // Applying zoom transformation before drawing
+    ctx.translate(zoomPoint.x, zoomPoint.y);
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.translate(-zoomPoint.x, -zoomPoint.y);
+
+    // Drawing elements after transformation
     ctx.drawImage(imgRef.current, 0, 0, width, height);
+
     rectanglesRef.current.forEach((shape) => {
-      if (shape.type === "rectangle") {
+      if (shape.type === "rectangle")
         drawRectangle(shape.start, shape.end, ctx, "black");
-      } else if (shape.type === "circle") {
-        drawCircle(shape.start, shape.end, ctx, "black");
-      }
+      else if (shape.type === "circle")
+        drawOval(shape.start, shape.end, ctx, "black");
     });
-  }, [canvasRef, width, height]);
+
+    ctx.restore(); // Reset transformations after drawing
+  }, [canvasRef, zoomLevel, zoomPoint, width, height]);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      canvasRef.current.style.filter = adjustContrast
+        ? `brightness(${brightness}%)`
+        : "brightness(100%)";
+    }
+  }, [adjustContrast, canvasRef]);
+
+  const handleWheel = useCallback(
+    (event) => {
+      // Calculating the zoomPoint dynamically based on cursor position
+      const bounds = canvasRef.current.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+
+      setZoomPoint({ x, y });
+
+      // Zooming in/out depending on deltaY value
+      if (event.deltaY < 0) setZoomLevel((prev) => Math.min(prev * 1.1, 5));
+      else setZoomLevel((prev) => Math.max(prev / 1.1, 1));
+    },
+    [canvasRef, setZoomLevel]
+  );
+
+  function drawOval(start, end, ctx, color) {
+    const minX = Math.min(start.x, end.x);
+    const minY = Math.min(start.y, end.y);
+    const maxX = Math.max(start.x, end.x);
+    const maxY = Math.max(start.y, end.y);
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    const centerX = minX + width / 2;
+    const centerY = minY + height / 2;
+    const rx = width / 2;
+    const ry = height / 2;
+
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY, rx, ry, 0, 0, 2 * Math.PI);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () =>
+      canvas.removeEventListener("wheel", handleWheel, { passive: false });
+  }, [canvasRef, handleWheel]);
 
   useEffect(() => {
     imgRef.current.onload = () => redraw();
@@ -58,11 +105,16 @@ const Canvas = (props) => {
 
   function onDraw(ctx, point, prevPoint) {
     if (!prevPoint) return;
+
+    // Adjusting points considering zoom level and zoom point.
+    const adjustedPoint = adjustPoint(point, zoomLevel, zoomPoint);
+    const adjustedPrevPoint = adjustPoint(prevPoint, zoomLevel, zoomPoint);
+
     redraw();
     if (shapeType === "rectangle") {
-      drawRectangle(prevPoint, point, ctx, "black");
+      drawRectangle(adjustedPrevPoint, adjustedPoint, ctx, "black");
     } else if (shapeType === "circle") {
-      drawCircle(prevPoint, point, ctx, "black"); // prevPoint is center, point is current mouse position
+      drawOval(adjustedPrevPoint, adjustedPoint, ctx, "black");
     }
   }
 
@@ -81,10 +133,10 @@ const Canvas = (props) => {
     if (prevPointRef.current && lastPointRef.current) {
       const shape = {
         type: shapeType,
-        start: prevPointRef.current,
+        start: prevPointRef.current, // these points should be original points, not adjusted ones.
         end: lastPointRef.current,
       };
-      rectanglesRef.current.push(shape); // This array will now store both rectangles and circles.
+      rectanglesRef.current.push(shape);
     }
   }
 
@@ -110,6 +162,7 @@ const Canvas = (props) => {
       style={canvasStyle}
       ref={setCanvasRef}
       onMouseUp={onMouseUp}
+      onWheel={handleWheel}
     />
   );
 };

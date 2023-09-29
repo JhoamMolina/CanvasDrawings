@@ -52,6 +52,7 @@ export function useOnDraw(onDraw) {
   function initMouseDownListener() {
     if (!canvasRef.current) return;
     const listener = (e) => {
+      if (e.button !== 0) return; // only left click (0
       isDrawingRef.current = true;
       const point = computePointInCanvas(e.clientX, e.clientY);
       prevPointRef.current = point; // Store the starting point when mouse is pressed
@@ -78,5 +79,10 @@ export function useOnDraw(onDraw) {
     };
   }
 
-  return { setCanvasRef, canvasRef, prevPointRef, lastPointRef };
+  return {
+    setCanvasRef,
+    canvasRef,
+    prevPointRef,
+    lastPointRef,
+  };
 }
